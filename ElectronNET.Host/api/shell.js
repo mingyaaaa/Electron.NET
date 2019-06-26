@@ -1,44 +1,46 @@
 "use strict";
-exports.__esModule = true;
-var electron_1 = require("electron");
-module.exports = function (socket) {
-    socket.on('shell-showItemInFolder', function (fullPath) {
-        var success = electron_1.shell.showItemInFolder(fullPath);
-        socket.emit('shell-showItemInFolderCompleted', success);
+const electron_1 = require("electron");
+let electronSocket;
+module.exports = (socket) => {
+    electronSocket = socket;
+    socket.on('shell-showItemInFolder', (fullPath) => {
+        const success = electron_1.shell.showItemInFolder(fullPath);
+        electronSocket.emit('shell-showItemInFolderCompleted', success);
     });
-    socket.on('shell-openItem', function (fullPath) {
-        var success = electron_1.shell.openItem(fullPath);
-        socket.emit('shell-openItemCompleted', success);
+    socket.on('shell-openItem', (fullPath) => {
+        const success = electron_1.shell.openItem(fullPath);
+        electronSocket.emit('shell-openItemCompleted', success);
     });
-    socket.on('shell-openExternal', function (url, options, callback) {
-        var success = false;
-        if (options && callback) {
-            success = electron_1.shell.openExternal(url, options, function (error) {
-                socket.emit('shell-openExternalCallback', [url, error]);
+    socket.on('shell-openExternal', (url, options) => {
+        let success = true;
+        if (options) {
+            electron_1.shell.openExternal(url, options).catch((error) => {
+                success = false;
+                electronSocket.emit('shell-openExternalCallback', [url, error]);
             });
         }
-        else if (options) {
-            success = electron_1.shell.openExternal(url, options);
-        }
         else {
-            success = electron_1.shell.openExternal(url);
+            electron_1.shell.openExternal(url).catch((error) => {
+                success = false;
+                electronSocket.emit('shell-openExternalCallback', [url, error]);
+            });
         }
-        socket.emit('shell-openExternalCompleted', success);
+        electronSocket.emit('shell-openExternalCompleted', success);
     });
-    socket.on('shell-moveItemToTrash', function (fullPath) {
-        var success = electron_1.shell.moveItemToTrash(fullPath);
-        socket.emit('shell-moveItemToTrashCompleted', success);
+    socket.on('shell-moveItemToTrash', (fullPath) => {
+        const success = electron_1.shell.moveItemToTrash(fullPath);
+        electronSocket.emit('shell-moveItemToTrashCompleted', success);
     });
-    socket.on('shell-beep', function () {
+    socket.on('shell-beep', () => {
         electron_1.shell.beep();
     });
-    socket.on('shell-writeShortcutLink', function (shortcutPath, operation, options) {
-        var success = electron_1.shell.writeShortcutLink(shortcutPath, operation, options);
-        socket.emit('shell-writeShortcutLinkCompleted', success);
+    socket.on('shell-writeShortcutLink', (shortcutPath, operation, options) => {
+        const success = electron_1.shell.writeShortcutLink(shortcutPath, operation, options);
+        electronSocket.emit('shell-writeShortcutLinkCompleted', success);
     });
-    socket.on('shell-readShortcutLink', function (shortcutPath) {
-        var shortcutDetails = electron_1.shell.readShortcutLink(shortcutPath);
-        socket.emit('shell-readShortcutLinkCompleted', shortcutDetails);
+    socket.on('shell-readShortcutLink', (shortcutPath) => {
+        const shortcutDetails = electron_1.shell.readShortcutLink(shortcutPath);
+        electronSocket.emit('shell-readShortcutLinkCompleted', shortcutDetails);
     });
 };
 //# sourceMappingURL=shell.js.map

@@ -3,7 +3,9 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Web;
 
 namespace ElectronNET.API
 {
@@ -13,7 +15,7 @@ namespace ElectronNET.API
     public sealed class Dialog
     {
         private static Dialog _dialog;
-        private static object _syncRoot = new Object();
+        private static object _syncRoot = new object();
 
         internal Dialog() { }
 
@@ -54,14 +56,18 @@ namespace ElectronNET.API
                 BridgeConnector.Socket.Off("showOpenDialogComplete" + guid);
 
                 var result = ((JArray)filePaths).ToObject<string[]>();
-                taskCompletionSource.SetResult(result);
+                var list = new List<string>();
+                foreach (var item in result)
+                {
+                    list.Add(HttpUtility.UrlDecode(item));
+                }
+                taskCompletionSource.SetResult(list.ToArray());
             });
 
 
             BridgeConnector.Socket.Emit("showOpenDialog",
             JObject.FromObject(browserWindow, _jsonSerializer),
-            JObject.FromObject(options, _jsonSerializer),
-            guid);
+            JObject.FromObject(options, _jsonSerializer), guid);
 
             return taskCompletionSource.Task;
         }

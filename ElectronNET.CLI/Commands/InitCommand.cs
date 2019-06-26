@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
@@ -100,15 +99,16 @@ namespace ElectronNET.CLI.Commands
 
             string launchSettingText = File.ReadAllText(launchSettingFile);
 
-            if (launchSettingText.Contains("electronize start") == false)
+            if (launchSettingText.Contains("\"executablePath\": \"electronize\"") == false)
             {
                 StringBuilder debugProfileBuilder = new StringBuilder();
                 debugProfileBuilder.AppendLine("profiles\": {");
-                debugProfileBuilder.AppendLine("\"Electron.NET App\": {");
-                debugProfileBuilder.AppendLine("\"commandName\": \"Executable\",");
-                debugProfileBuilder.AppendLine("\"executablePath\": \"C:\\\\Program Files\\\\dotnet\\\\dotnet.exe\",");
-                debugProfileBuilder.AppendLine("\"commandLineArgs\": \"electronize start\"");
-                debugProfileBuilder.AppendLine("},");
+                debugProfileBuilder.AppendLine("    \"Electron.NET App\": {");
+                debugProfileBuilder.AppendLine("      \"commandName\": \"Executable\",");
+                debugProfileBuilder.AppendLine("      \"executablePath\": \"electronize\",");
+                debugProfileBuilder.AppendLine("      \"commandLineArgs\": \"start\",");
+                debugProfileBuilder.AppendLine("      \"workingDirectory\": \".\"");
+                debugProfileBuilder.AppendLine("    },");
 
                 launchSettingText = launchSettingText.Replace("profiles\": {", debugProfileBuilder.ToString());
                 File.WriteAllText(launchSettingFile, launchSettingText);

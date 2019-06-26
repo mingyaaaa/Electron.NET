@@ -21,5 +21,10 @@
         /// files.
         /// </summary>
         public string BaseURLForDataURL { get; set; }
+
+        /// <summary>
+        /// Extra headers for the request.
+        /// </summary>
+        public string ExtraHeaders { get; set; }
     }
 }

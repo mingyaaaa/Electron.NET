@@ -14,7 +14,7 @@ namespace ElectronNET.API
     public sealed class IpcMain
     {
         private static IpcMain _ipcMain;
-        private static object _syncRoot = new Object();
+        private static object _syncRoot = new object();
 
         internal IpcMain() { }
 
@@ -46,6 +46,7 @@ namespace ElectronNET.API
         public void On(string channel, Action<object> listener)
         {
             BridgeConnector.Socket.Emit("registerIpcMainChannel", channel);
+            BridgeConnector.Socket.Off(channel);
             BridgeConnector.Socket.On(channel, (args) => 
             {
                 List<object> objectArray = FormatArguments(args);
@@ -152,7 +153,7 @@ namespace ElectronNET.API
         {
             List<JObject> jobjects = new List<JObject>();
             List<JArray> jarrays = new List<JArray>();
-            List<Object> objects = new List<Object>();
+            List<object> objects = new List<object>();
 
             foreach (var parameterObject in data)
             {

@@ -3,7 +3,6 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using System;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -374,7 +373,7 @@ namespace ElectronNET.API
         }
 
         private static App _app;
-        private static object _syncRoot = new Object();
+        private static object _syncRoot = new object();
 
         private JsonSerializer _jsonSerializer = new JsonSerializer()
         {
@@ -518,8 +517,6 @@ namespace ElectronNET.API
         /// stored under the userData directory.If you want to change this location, you
         /// have to override the userData path before the ready event of the app module is emitted.
         /// </summary>
-        /// <param name="name"></param>
-        /// <param name="path"></param>
         public void SetPath(string name, string path)
         {
             BridgeConnector.Socket.Emit("appSetPath", name, path);
@@ -618,7 +615,6 @@ namespace ElectronNET.API
         /// Windows you can visit the list from the task bar, and on macOS you can visit it
         /// from dock menu.
         /// </summary>
-        /// <param name="path"></param>
         public void AddRecentDocument(string path)
         {
             BridgeConnector.Socket.Emit("appAddRecentDocument", path);
@@ -1032,21 +1028,21 @@ namespace ElectronNET.API
         /// <returns>This method returns false if your process is the primary instance of 
         /// the application and your app should continue loading. And returns true if your 
         /// process has sent its parameters to another instance, and you should immediately quit.</returns>
-        public async Task<bool> MakeSingleInstanceAsync(Action<string[], string> newInstanceOpened, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<bool> RequestSingleInstanceLockAsync(Action<string[], string> newInstanceOpened, CancellationToken cancellationToken = default(CancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var taskCompletionSource = new TaskCompletionSource<bool>();
             using (cancellationToken.Register(() => taskCompletionSource.TrySetCanceled()))
             {
-                BridgeConnector.Socket.On("appMakeSingleInstanceCompleted", (success) =>
+                BridgeConnector.Socket.On("appRequestSingleInstanceLockCompleted", (success) =>
                 {
-                    BridgeConnector.Socket.Off("appMakeSingleInstanceCompleted");
+                    BridgeConnector.Socket.Off("appRequestSingleInstanceLockCompleted");
                     taskCompletionSource.SetResult((bool)success);
                 });
 
-                BridgeConnector.Socket.Off("newInstanceOpened");
-                BridgeConnector.Socket.On("newInstanceOpened", (result) =>
+                BridgeConnector.Socket.Off("secondInstance");
+                BridgeConnector.Socket.On("secondInstance", (result) =>
                 {
                     JArray results = (JArray)result;
                     string[] args = results.First.ToObject<string[]>();
@@ -1055,7 +1051,7 @@ namespace ElectronNET.API
                     newInstanceOpened(args, workdirectory);
                 });
 
-                BridgeConnector.Socket.Emit("appMakeSingleInstance");
+                BridgeConnector.Socket.Emit("appRequestSingleInstanceLock");
 
                 return await taskCompletionSource.Task
                     .ConfigureAwait(false);
@@ -1066,9 +1062,9 @@ namespace ElectronNET.API
         /// Releases all locks that were created by makeSingleInstance. This will allow
         /// multiple instances of the application to once again run side by side.
         /// </summary>
-        public void ReleaseSingleInstance()
+        public void ReleaseSingleInstanceLock()
         {
-            BridgeConnector.Socket.Emit("appReleaseSingleInstance");
+            BridgeConnector.Socket.Emit("appReleaseSingleInstanceLock");
         }
 
         /// <summary>
@@ -1158,7 +1154,8 @@ namespace ElectronNET.API
         /// <summary>
         /// Memory and cpu usage statistics of all the processes associated with the app.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Array of ProcessMetric objects that correspond to memory and cpu usage
+        /// statistics of all the processes associated with the app.</returns>
         public async Task<ProcessMetric[]> GetAppMetricsAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1213,7 +1210,6 @@ namespace ElectronNET.API
         /// launcher, Note: Unity launcher requires the existence of a.desktop file to
         /// work, for more information please read Desktop Environment Integration.
         /// </summary>
-        /// <param name="count"></param>
         /// <returns>Whether the call succeeded.</returns>
         public async Task<bool> SetBadgeCountAsync(int count, CancellationToken cancellationToken = default(CancellationToken))
         {
@@ -1415,14 +1411,6 @@ namespace ElectronNET.API
         public void CommandLineAppendArgument(string value)
         {
             BridgeConnector.Socket.Emit("appCommandLineAppendArgument", value);
-        }
-
-        /// <summary>
-        /// Enables mixed sandbox mode on the app. This method can only be called before app is ready.
-        /// </summary>
-        public void EnableMixedSandbox()
-        {
-            BridgeConnector.Socket.Emit("appEnableMixedSandbox");
         }
 
         /// <summary>

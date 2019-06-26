@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Threading.Tasks;
 
 namespace ElectronNET.WebApp
 {
@@ -57,9 +56,11 @@ namespace ElectronNET.WebApp
             var browserWindow = await Electron.WindowManager.CreateWindowAsync(new BrowserWindowOptions
             {
                 Width = 1152,
-                Height = 864,
+                Height = 940,
                 Show = false
             });
+
+            await browserWindow.WebContents.Session.ClearCacheAsync();
 
             browserWindow.OnReadyToShow += () => browserWindow.Show();
             browserWindow.SetTitle(Configuration["DemoTitleInSettings"]);

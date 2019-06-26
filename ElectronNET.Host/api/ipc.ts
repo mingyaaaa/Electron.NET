@@ -1,27 +1,29 @@
 import { ipcMain, BrowserWindow } from 'electron';
+let electronSocket;
 
-module.exports = (socket: SocketIO.Server) => {
+export = (socket: SocketIO.Socket) => {
+    electronSocket = socket;
     socket.on('registerIpcMainChannel', (channel) => {
         ipcMain.on(channel, (event, args) => {
-            socket.emit(channel, [event.preventDefault(), args]);
+            electronSocket.emit(channel, [event.preventDefault(), args]);
         });
     });
 
     socket.on('registerSyncIpcMainChannel', (channel) => {
         ipcMain.on(channel, (event, args) => {
-            let x = <any>socket;
+            const x = <any>socket;
             x.removeAllListeners(channel + 'Sync');
             socket.on(channel + 'Sync', (result) => {
                 event.returnValue = result;
             });
 
-            socket.emit(channel, [event.preventDefault(), args]);
+            electronSocket.emit(channel, [event.preventDefault(), args]);
         });
     });
 
     socket.on('registerOnceIpcMainChannel', (channel) => {
         ipcMain.once(channel, (event, args) => {
-            socket.emit(channel, [event.preventDefault(), args]);
+            electronSocket.emit(channel, [event.preventDefault(), args]);
         });
     });
 
@@ -31,9 +33,9 @@ module.exports = (socket: SocketIO.Server) => {
 
     socket.on('sendToIpcRenderer', (browserWindow, channel, ...data) => {
         const window = BrowserWindow.fromId(browserWindow.id);
-        
+
         if (window) {
             window.webContents.send(channel, ...data);
         }
     });
-}
+};

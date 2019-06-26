@@ -1,12 +1,14 @@
-import { Menu, BrowserWindow } from "electron";
+import { Menu, BrowserWindow } from 'electron';
 const contextMenuItems = [];
+let electronSocket;
 
-module.exports = (socket: SocketIO.Server) => {
+export = (socket: SocketIO.Socket) => {
+    electronSocket = socket;
     socket.on('menu-setContextMenu', (browserWindowId, menuItems) => {
         const menu = Menu.buildFromTemplate(menuItems);
 
         addContextMenuItemClickConnector(menu.items, browserWindowId, (id, browserWindowId) => {
-            socket.emit("contextMenuItemClicked", [id, browserWindowId]);
+            electronSocket.emit('contextMenuItemClicked', [id, browserWindowId]);
         });
 
         contextMenuItems.push({
@@ -21,7 +23,7 @@ module.exports = (socket: SocketIO.Server) => {
                 addContextMenuItemClickConnector(item.submenu.items, browserWindowId, callback);
             }
 
-            if ("id" in item && item.id) {
+            if ('id' in item && item.id) {
                 item.click = () => { callback(item.id, browserWindowId); };
             }
         });
@@ -29,8 +31,8 @@ module.exports = (socket: SocketIO.Server) => {
 
     socket.on('menu-contextMenuPopup', (browserWindowId) => {
         contextMenuItems.forEach(x => {
-            if(x.browserWindowId === browserWindowId) {
-                let browserWindow = BrowserWindow.fromId(browserWindowId);
+            if (x.browserWindowId === browserWindowId) {
+                const browserWindow = BrowserWindow.fromId(browserWindowId);
                 x.menu.popup(browserWindow);
             }
         });
@@ -40,7 +42,7 @@ module.exports = (socket: SocketIO.Server) => {
         const menu = Menu.buildFromTemplate(menuItems);
 
         addMenuItemClickConnector(menu.items, (id) => {
-            socket.emit("menuItemClicked", id);
+            electronSocket.emit('menuItemClicked', id);
         });
 
         Menu.setApplicationMenu(menu);
@@ -52,9 +54,9 @@ module.exports = (socket: SocketIO.Server) => {
                 addMenuItemClickConnector(item.submenu.items, callback);
             }
 
-            if ("id" in item && item.id) {
+            if ('id' in item && item.id) {
                 item.click = () => { callback(item.id); };
             }
         });
     }
-}
+};

@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
 using ElectronNET.CLI.Commands.Actions;
 
@@ -16,9 +14,13 @@ namespace ElectronNET.CLI.Commands
         public static string COMMAND_ARGUMENTS = "Needed: '/target' with params 'win/osx/linux' to build for a typical app or use 'custom' and specify .NET Core build config & electron build config" + Environment.NewLine +
                                                  " for custom target, check .NET Core RID Catalog and Electron build target/" + Environment.NewLine +
                                                  " e.g. '/target win' or '/target custom \"win7-x86;win32\"'" + Environment.NewLine +
-                                                 "Optional: '/dotnet-configuration' with the desired .NET Core build config e.g. release or debug. Default = Release" + Environment.NewLine + 
+                                                 "Optional: '/dotnet-configuration' with the desired .NET Core build config e.g. release or debug. Default = Release" + Environment.NewLine +
                                                  "Optional: '/electron-arch' to specify the resulting electron processor architecture (e.g. ia86 for x86 builds). Be aware to use the '/target custom' param as well!" + Environment.NewLine +
                                                  "Optional: '/electron-params' specify any other valid parameter, which will be routed to the electron-packager." + Environment.NewLine +
+                                                 "Optional: '/relative-path' to specify output a subdirectory for output." + Environment.NewLine +
+                                                 "Optional: '/absolute-path to specify and absolute path for output." + Environment.NewLine +
+                                                 "Optional: '/package-json' to specify a custom package.json file." + Environment.NewLine +
+                                                 "Optional: '/install-modules' to force node module install. Implied by '/package-json'"  + Environment.NewLine +                                 
                                                  "Full example for a 32bit debug build with electron prune: build /target custom win7-x86;win32 /dotnet-configuration Debug /electron-arch ia32  /electron-params \"--prune=true \"";
 
         public static IList<CommandOption> CommandOptions { get; set; } = new List<CommandOption>();
@@ -34,6 +36,10 @@ namespace ElectronNET.CLI.Commands
         private string _paramDotNetConfig = "dotnet-configuration";
         private string _paramElectronArch = "electron-arch";
         private string _paramElectronParams = "electron-params";
+        private string _paramOutputDirectory = "relative-path";
+        private string _paramAbsoluteOutput = "absolute-path";
+        private string _paramPackageJson = "package-json";
+        private string _paramForceNodeInstall = "install-modules";
 
         public Task<bool> ExecuteAsync()
         {
@@ -61,8 +67,8 @@ namespace ElectronNET.CLI.Commands
 
                 Console.WriteLine($"Build ASP.NET Core App for {platformInfo.NetCorePublishRid}...");
 
-
                 string tempPath = Path.Combine(Directory.GetCurrentDirectory(), "obj", "desktop", desiredPlatform);
+                
                 if (Directory.Exists(tempPath) == false)
                 {
                     Directory.CreateDirectory(tempPath);
@@ -78,42 +84,73 @@ namespace ElectronNET.CLI.Commands
 
                 if (resultCode != 0)
                 {
-                    Console.WriteLine("Error occurred during dotnet publish.");
+                    Console.WriteLine("Error occurred during dotnet publish: " + resultCode);
                     return false;
                 }
 
                 DeployEmbeddedElectronFiles.Do(tempPath);
+                var nodeModulesDirPath = Path.Combine(tempPath, "node_modules");
+
+                if (parser.Arguments.ContainsKey(_paramPackageJson))
+                {
+                    Console.WriteLine("Copying custom package.json.");
+
+                    File.Copy(parser.Arguments[_paramPackageJson][0], Path.Combine(tempPath, "package.json"), true);
+                }
 
                 var checkForNodeModulesDirPath = Path.Combine(tempPath, "node_modules");
 
-                if (Directory.Exists(checkForNodeModulesDirPath) == false)
+                if (Directory.Exists(checkForNodeModulesDirPath) == false || parser.Contains(_paramForceNodeInstall) || parser.Contains(_paramPackageJson))
+
+                Console.WriteLine("Start npm install...");
+                ProcessHelper.CmdExecute("npm install --production", tempPath);
+
+                Console.WriteLine("Start npm install electron-builder...");
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+
                 {
-                    Console.WriteLine("node_modules missing in: " + checkForNodeModulesDirPath);
-
-                    Console.WriteLine("Start npm install...");
-                    ProcessHelper.CmdExecute("npm install", tempPath);
-
-                    Console.WriteLine("Start npm install electron-packager...");
-
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    {
-                        // Works proper on Windows... 
-                        ProcessHelper.CmdExecute("npm install electron-packager --global", tempPath);
-                    }
-                    else
-                    {
-                        // ToDo: find another solution or document it proper
-                        // GH Issue https://github.com/electron-userland/electron-prebuilt/issues/48
-                        Console.WriteLine("Electron Packager - make sure you invoke 'sudo npm install electron-packager --global' at " + tempPath + " manually. Sry.");
-                    }
+                    // Works proper on Windows... 
+                    ProcessHelper.CmdExecute("npm install electron-builder --global", tempPath);
                 }
                 else
                 {
-                    Console.WriteLine("Skip npm install, because node_modules directory exists in: " + checkForNodeModulesDirPath);
+                    // ToDo: find another solution or document it proper
+                    // GH Issue https://github.com/electron-userland/electron-prebuilt/issues/48
+                    Console.WriteLine("Electron Builder - make sure you invoke 'sudo npm install electron-builder --global' at " + tempPath + " manually. Sry.");
+                }
+
+                Console.WriteLine("ElectronHostHook handling started...");
+
+                string electronhosthookDir = Path.Combine(Directory.GetCurrentDirectory(), "ElectronHostHook");
+
+                if (Directory.Exists(electronhosthookDir))
+                {
+                    string hosthookDir = Path.Combine(tempPath, "ElectronHostHook");
+                    DirectoryCopy.Do(electronhosthookDir, hosthookDir, true, new List<string>() { "node_modules" });
+
+                    Console.WriteLine("Start npm install for hosthooks...");
+                    ProcessHelper.CmdExecute("npm install --production", hosthookDir);
+
+                    // ToDo: Global TypeScript installation is needed for ElectronHostHook
+                    //string tscPath = Path.Combine(tempPath, "node_modules", ".bin");
+                    
+                    // ToDo: Not sure if this runs under linux/macos
+                    ProcessHelper.CmdExecute(@"tsc -p . --sourceMap false", hosthookDir);
                 }
 
                 Console.WriteLine("Build Electron Desktop Application...");
+
+                // Specifying an absolute path supercedes a relative path
                 string buildPath = Path.Combine(Directory.GetCurrentDirectory(), "bin", "desktop");
+                if (parser.Arguments.ContainsKey(_paramAbsoluteOutput))
+                {
+                    buildPath = parser.Arguments[_paramAbsoluteOutput][0];
+                }
+                else if (parser.Arguments.ContainsKey(_paramOutputDirectory))
+                {
+                    buildPath = Path.Combine(Directory.GetCurrentDirectory(),parser.Arguments[_paramOutputDirectory][0]);
+                }
 
                 Console.WriteLine("Executing electron magic in this directory: " + buildPath);
 
@@ -131,15 +168,17 @@ namespace ElectronNET.CLI.Commands
                     electronParams = parser.Arguments[_paramElectronParams][0];
                 }
 
+                // ToDo: Make the same thing easer with native c# - we can save a tmp file in production code :)
+                Console.WriteLine("Create electron-builder configuration file...");
+                ProcessHelper.CmdExecute($"node build-helper.js", tempPath);
+
                 Console.WriteLine($"Package Electron App for Platform {platformInfo.ElectronPackerPlatform}...");
-                ProcessHelper.CmdExecute($"electron-packager . --platform={platformInfo.ElectronPackerPlatform} --arch={electronArch} {electronParams} --out=\"{buildPath}\" --overwrite", tempPath);
+                ProcessHelper.CmdExecute($"electron-builder . --config=./bin/electron-builder.json --platform={platformInfo.ElectronPackerPlatform} --arch={electronArch} {electronParams}", tempPath);
 
                 Console.WriteLine("... done");
 
                 return true;
             });
         }
-
-
     }
 }

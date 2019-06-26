@@ -1,67 +1,169 @@
-const { app } = require('electron');
-const fs = require('fs');
+﻿const { app } = require('electron');
+const { BrowserWindow } = require('electron');
 const path = require('path');
 const process = require('child_process').spawn;
-const portfinder = require('detect-port');
-let io, browserWindows, ipc, apiProcess, loadURL;
-let appApi, menu, dialog, notification, tray, webContents;
-let globalShortcut, shell, screen, clipboard;
+const portscanner = require('portscanner');
+const imageSize = require('image-size');
+let io, server, browserWindows, ipc, apiProcess, loadURL;
+let appApi, menu, dialogApi, notification, tray, webContents;
+let globalShortcut, shellApi, screen, clipboard, autoUpdater;
+let splashScreen, hostHook;
 
-app.on('ready', () => {
-    portfinder(8000, (error, port) => {
-        startSocketApiBridge(port);
+const currentBinPath = path.join(__dirname.replace('app.asar', ''), 'bin');
+const manifestJsonFilePath = path.join(currentBinPath, 'electron.manifest.json');
+const manifestJsonFile = require(manifestJsonFilePath);
+if (manifestJsonFile.singleInstance) {
+    const mainInstance = app.requestSingleInstanceLock();
+    app.on('second-instance', () => {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length) {
+            if (windows[0].isMinimized()) {
+                windows[0].restore();
+            }
+            windows[0].focus();
+        }
     });
-});
 
-function startSocketApiBridge(port) {
-    io = require('socket.io')(port);
-    startAspCoreBackend(port);
-
-    io.on('connection', (socket) => {
-        console.log('ASP.NET Core Application connected...');
-        
-        appApi = require('./api/app')(socket, app);
-        browserWindows = require('./api/browserWindows')(socket);
-        ipc = require('./api/ipc')(socket);        
-        menu = require('./api/menu')(socket);
-        dialog = require('./api/dialog')(socket);
-        notification = require('./api/notification')(socket);
-        tray = require('./api/tray')(socket);
-        webContents = require('./api/webContents')(socket);
-        globalShortcut = require('./api/globalShortcut')(socket);
-        shell = require('./api/shell')(socket);
-        screen = require('./api/screen')(socket);
-        clipboard = require('./api/clipboard')(socket);
-    });
+    if (!mainInstance) {
+        app.quit();
+    }
 }
 
-function startAspCoreBackend(electronPort) {
-    portfinder(8000, (error, electronWebPort) => {
-        loadURL = `http://localhost:${electronWebPort}`
-        const parameters = [`/electronPort=${electronPort}`, `/electronWebPort=${electronWebPort}`];
+app.on('ready', () => {
+    if (isSplashScreenEnabled()) {
+        startSplashScreen();
+    }
 
-        const manifestFile = require("./bin/electron.manifest.json");
-        let binaryFile = manifestFile.executable;
-        
-        const os = require("os");
-        if(os.platform() === "win32") {
-            binaryFile = binaryFile + '.exe';
+    // hostname needs to belocalhost, otherwise Windows Firewall will be triggered.
+    portscanner.findAPortNotInUse(8000, 65535, 'localhost', function (error, port) {
+        console.log('Electron Socket IO Port: ' + port);
+        startSocketApiBridge(port);
+    });
+
+});
+
+function isSplashScreenEnabled() {
+    if (manifestJsonFile.hasOwnProperty('splashscreen')) {
+        if (manifestJsonFile.splashscreen.hasOwnProperty('imageFile')) {
+            return Boolean(manifestJsonFile.splashscreen.imageFile);
         }
-        
-        const binFilePath = path.join(__dirname, 'bin', binaryFile);
-        apiProcess = process(binFilePath, parameters);
+    }
 
-        apiProcess.stdout.on('data', (data) => {
-            var text = data.toString();
-            console.log(`stdout: ${data.toString()}`);
+    return false;
+}
+
+function startSplashScreen() {
+    let imageFile = path.join(currentBinPath, manifestJsonFile.splashscreen.imageFile);
+    imageSize(imageFile, (error, dimensions) => {
+        if (error) {
+            console.log(`load splashscreen error:`);
+            console.log(error);
+
+            throw new Error(error.message);
+        }
+
+        splashScreen = new BrowserWindow({
+            width: dimensions.width,
+            height: dimensions.height,
+            transparent: true,
+            center: true,
+            frame: false,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            show: true
+        });
+
+        app.once('browser-window-focus', () => {
+            app.once('browser-window-focus', () => {
+                splashScreen.destroy();
+            });
+        });
+
+        const loadSplashscreenUrl = path.join(__dirname, 'splashscreen', 'index.html') + '?imgPath=' + imageFile;
+        splashScreen.loadURL('file://' + loadSplashscreenUrl);
+
+        splashScreen.once('closed', () => {
+            splashScreen = null;
         });
     });
 }
 
-//app.on('activate', () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-//    if (win === null) {
-//        createWindow();
-//    }
-//});
+function startSocketApiBridge(port) {
+
+    // instead of 'require('socket.io')(port);' we need to use this workaround
+    // otherwise the Windows Firewall will be triggered
+    server = require('http').createServer();
+    io = require('socket.io')();
+    io.attach(server);
+
+    server.listen(port, 'localhost');
+    server.on('listening', function () {
+        console.log('Electron Socket started on port %s at %s', server.address().port, server.address().address);
+    });
+
+    startAspCoreBackend(port);
+
+    io.on('connection', (socket) => {
+        global['electronsocket'] = socket;
+        global['electronsocket'].setMaxListeners(0);
+        console.log('ASP.NET Core Application connected...', 'global.electronsocket', global['electronsocket'].id, new Date());
+
+        appApi = require('./api/app')(socket, app);
+        browserWindows = require('./api/browserWindows')(socket, app);
+        autoUpdater = require('./api/autoUpdater')(socket);
+        ipc = require('./api/ipc')(socket);
+        menu = require('./api/menu')(socket);
+        dialogApi = require('./api/dialog')(socket);
+        notification = require('./api/notification')(socket);
+        tray = require('./api/tray')(socket);
+        webContents = require('./api/webContents')(socket);
+        globalShortcut = require('./api/globalShortcut')(socket);
+        shellApi = require('./api/shell')(socket);
+        screen = require('./api/screen')(socket);
+        clipboard = require('./api/clipboard')(socket);
+
+        try {
+            const hostHookScriptFilePath = path.join(__dirname, 'ElectronHostHook', 'index.js');
+
+            if (isModuleAvailable(hostHookScriptFilePath) && hostHook === undefined) {
+                const { HookService } = require(hostHookScriptFilePath);
+                hostHook = new HookService(socket, app);
+                hostHook.onHostReady();
+            }
+        } catch (error) {
+            console.log(error.message);
+        }
+    });
+}
+
+function isModuleAvailable(name) {
+    try {
+        require.resolve(name);
+        return true;
+    } catch (e) { }
+    return false;
+}
+
+function startAspCoreBackend(electronPort) {
+
+    // hostname needs to be localhost, otherwise Windows Firewall will be triggered.
+    portscanner.findAPortNotInUse(8000, 65535, 'localhost', function (error, electronWebPort) {
+        console.log('ASP.NET Core Port: ' + electronWebPort);
+        loadURL = `http://localhost:${electronWebPort}`;
+        const parameters = [`/electronPort=${electronPort}`, `/electronWebPort=${electronWebPort}`];
+        let binaryFile = manifestJsonFile.executable;
+
+        const os = require('os');
+        if (os.platform() === 'win32') {
+            binaryFile = binaryFile + '.exe';
+        }
+
+        let binFilePath = path.join(currentBinPath, binaryFile);
+        var options = { cwd: currentBinPath };
+        apiProcess = process(binFilePath, parameters, options);
+
+        apiProcess.stdout.on('data', (data) => {
+            console.log(`stdout: ${data.toString()}`);
+        });
+    });
+}

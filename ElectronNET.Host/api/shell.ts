@@ -1,38 +1,42 @@
-import { shell } from "electron";
+import { shell } from 'electron';
+let electronSocket;
 
-module.exports = (socket: SocketIO.Server) => {
+export = (socket: SocketIO.Socket) => {
+    electronSocket = socket;
     socket.on('shell-showItemInFolder', (fullPath) => {
         const success = shell.showItemInFolder(fullPath);
 
-        socket.emit('shell-showItemInFolderCompleted', success);
+        electronSocket.emit('shell-showItemInFolderCompleted', success);
     });
 
     socket.on('shell-openItem', (fullPath) => {
         const success = shell.openItem(fullPath);
 
-        socket.emit('shell-openItemCompleted', success);
+        electronSocket.emit('shell-openItemCompleted', success);
     });
 
-    socket.on('shell-openExternal', (url, options, callback) => {
-        let success = false;
+    socket.on('shell-openExternal', (url, options) => {
+        let success = true;
 
-        if (options && callback) {
-            success = shell.openExternal(url, options, (error) => {
-                socket.emit('shell-openExternalCallback', [url, error]);
+        if (options) {
+            shell.openExternal(url, options).catch((error) => {
+                success = false;
+                electronSocket.emit('shell-openExternalCallback', [url, error]);
             });
-        } else if (options) {
-            success = shell.openExternal(url, options);
         } else {
-            success = shell.openExternal(url);
+            shell.openExternal(url).catch((error) => {
+                success = false;
+                electronSocket.emit('shell-openExternalCallback', [url, error]);
+            });
         }
 
-        socket.emit('shell-openExternalCompleted', success);
+        electronSocket.emit('shell-openExternalCompleted', success);
     });
 
     socket.on('shell-moveItemToTrash', (fullPath) => {
         const success = shell.moveItemToTrash(fullPath);
 
-        socket.emit('shell-moveItemToTrashCompleted', success);
+        electronSocket.emit('shell-moveItemToTrashCompleted', success);
     });
 
     socket.on('shell-beep', () => {
@@ -42,12 +46,12 @@ module.exports = (socket: SocketIO.Server) => {
     socket.on('shell-writeShortcutLink', (shortcutPath, operation, options) => {
         const success = shell.writeShortcutLink(shortcutPath, operation, options);
 
-        socket.emit('shell-writeShortcutLinkCompleted', success);
+        electronSocket.emit('shell-writeShortcutLinkCompleted', success);
     });
 
     socket.on('shell-readShortcutLink', (shortcutPath) => {
         const shortcutDetails = shell.readShortcutLink(shortcutPath);
 
-        socket.emit('shell-readShortcutLinkCompleted', shortcutDetails);
+        electronSocket.emit('shell-readShortcutLinkCompleted', shortcutDetails);
     });
-}
+};

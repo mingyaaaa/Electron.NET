@@ -1,26 +1,29 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
-    <AssemblyName>dotnet-electronize</AssemblyName>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <AssemblyName>electronize</AssemblyName>
     
     <PackageType>DotnetCliTool</PackageType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageOutputPath>..\artifacts</PackageOutputPath>
     <PackageId>ElectronNET.CLI</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.0.0</Version>
     <Authors>Gregor Biswanger, Robert Muehsig</Authors>
     <Product>Electron.NET</Product>
     <Company />
-    <Description>Building cross platform electron based desktop apps with .NET Core and ASP.NET NET Core.
+    <Description>Building cross platform electron based desktop apps with .NET Core and ASP.NET Core.
 This package contains the dotnet tooling to electronize your application.</Description>
-    <PackageLicenseUrl>https://github.com/ElectronNET/Electron.NET/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/ElectronNET/Electron.NET/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ElectronNET/Electron.NET/</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageTags>electron aspnetcore</PackageTags>
     <PackageReleaseNotes>Changelog: https://github.com/ElectronNET/Electron.NET/blob/master/Changelog.md</PackageReleaseNotes>
     <PackageIconUrl>https://raw.githubusercontent.com/ElectronNET/Electron.NET/master/assets/images/electron.net-logo-square.png</PackageIconUrl>
+    <PackAsTool>true</PackAsTool>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,7 +44,6 @@ This package contains the dotnet tooling to electronize your application.</Descr
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\ElectronNET.Host\package-lock.json" Link="ElectronHost\package-lock.json" />
     <EmbeddedResource Include="..\ElectronNET.Host\package.json" Link="ElectronHost\package.json" />
   </ItemGroup>
 
@@ -50,7 +52,23 @@ This package contains the dotnet tooling to electronize your application.</Descr
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\ElectronNET.Host\build-helper.js" Link="ElectronHost\build-helper.js" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="..\ElectronNET.Host\api\ipc.js" Link="ElectronHost\api\ipc.js" />
+  </ItemGroup>
+  
+    <ItemGroup>
+    <EmbeddedResource Include="..\ElectronNET.Host\ElectronHostHook\index.ts" Link="ElectronHost\ElectronHostHook\index.ts" />
+	 <EmbeddedResource Include="..\ElectronNET.Host\ElectronHostHook\connector.ts" Link="ElectronHost\ElectronHostHook\connector.ts" />
+	<EmbeddedResource Include="..\ElectronNET.Host\ElectronHostHook\tsconfig.json" Link="ElectronHost\ElectronHostHook\tsconfig.json" />
+	<EmbeddedResource Include="..\ElectronNET.Host\ElectronHostHook\package.json" Link="ElectronHost\ElectronHostHook\package.json" />
+      <EmbeddedResource Include="..\ElectronNET.Host\ElectronHostHook\.gitignore" Link="ElectronHost\ElectronHostHook\.gitignore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\ElectronNET.Host\splashscreen\index.html" Link="ElectronHost\splashscreen\index.html" />
   </ItemGroup>
 
   <ItemGroup>
@@ -74,6 +92,14 @@ This package contains the dotnet tooling to electronize your application.</Descr
 
   <ItemGroup>
     <EmbeddedResource Include="..\ElectronNET.Host\api\clipboard.js" Link="ElectronHost\api\clipboard.js" />
+    <EmbeddedResource Include="..\ElectronNET.Host\api\autoUpdater.js" Link="ElectronHost\api\autoUpdater.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-beta2-18618-05">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
     <Exec Command="$(ProjectDir)devCleanup.cmd" IgnoreExitCode="true" />

@@ -1,33 +1,34 @@
-import { BrowserWindow, dialog } from "electron";
+import { BrowserWindow, dialog } from 'electron';
+let electronSocket;
 
-module.exports = (socket: SocketIO.Server) => {
+export = (socket: SocketIO.Socket) => {
+    electronSocket = socket;
     socket.on('showMessageBox', (browserWindow, options, guid) => {
-        if ("id" in browserWindow) {
-            var window = BrowserWindow.fromId(browserWindow.id);
+        if ('id' in browserWindow) {
+            const window = BrowserWindow.fromId(browserWindow.id);
 
             dialog.showMessageBox(window, options, (response, checkboxChecked) => {
-                socket.emit('showMessageBoxComplete' + guid, [response, checkboxChecked]);
+                electronSocket.emit('showMessageBoxComplete' + guid, [response, checkboxChecked]);
             });
         } else {
-            var message = browserWindow;
-            let id = guid || options;
+            const id = guid || options;
             dialog.showMessageBox(browserWindow, (response, checkboxChecked) => {
-                socket.emit('showMessageBoxComplete' + id, [response, checkboxChecked]);
+                electronSocket.emit('showMessageBoxComplete' + id, [response, checkboxChecked]);
             });
         }
     });
 
     socket.on('showOpenDialog', (browserWindow, options, guid) => {
-        var window = BrowserWindow.fromId(browserWindow.id);
+        const window = BrowserWindow.fromId(browserWindow.id);
         dialog.showOpenDialog(window, options, (filePaths) => {
-            socket.emit('showOpenDialogComplete' + guid, filePaths || []);
+            electronSocket.emit('showOpenDialogComplete' + guid, filePaths || []);
         });
     });
 
     socket.on('showSaveDialog', (browserWindow, options, guid) => {
-        var window = BrowserWindow.fromId(browserWindow.id);
+        const window = BrowserWindow.fromId(browserWindow.id);
         dialog.showSaveDialog(window, options, (filename) => {
-            socket.emit('showSaveDialogComplete' + guid, filename || '');
+            electronSocket.emit('showSaveDialogComplete' + guid, filename || '');
         });
     });
 
@@ -36,9 +37,9 @@ module.exports = (socket: SocketIO.Server) => {
     });
 
     socket.on('showCertificateTrustDialog', (browserWindow, options, guid) => {
-        var window = BrowserWindow.fromId(browserWindow.id);
+        const window = BrowserWindow.fromId(browserWindow.id);
         dialog.showCertificateTrustDialog(window, options, () => {
-            socket.emit('showCertificateTrustDialogComplete' + guid);
+            electronSocket.emit('showCertificateTrustDialogComplete' + guid);
         });
     });
-}
+};

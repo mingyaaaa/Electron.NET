@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -48,34 +47,45 @@ namespace ElectronNET.CLI.Commands
                     Directory.CreateDirectory(tempPath);
                 }
 
-                var platformInfo = GetTargetPlatformInformation.Do(String.Empty, String.Empty);
+                var platformInfo = GetTargetPlatformInformation.Do(string.Empty, string.Empty);
 
                 string tempBinPath = Path.Combine(tempPath, "bin");
                 var resultCode = ProcessHelper.CmdExecute($"dotnet publish -r {platformInfo.NetCorePublishRid} --output \"{tempBinPath}\"", aspCoreProjectPath);
 
                 if (resultCode != 0)
                 {
-                    Console.WriteLine("Error occurred during dotnet publish.");
+                    Console.WriteLine("Error occurred during dotnet publish: " + resultCode);
                     return false;
                 }
 
                 DeployEmbeddedElectronFiles.Do(tempPath);
 
-                var checkForNodeModulesDirPath = Path.Combine(tempPath, "node_modules");
+                var nodeModulesDirPath = Path.Combine(tempPath, "node_modules");
 
-                if (Directory.Exists(checkForNodeModulesDirPath) == false)
-                {
-                    Console.WriteLine("node_modules missing in: " + checkForNodeModulesDirPath);
+                Console.WriteLine("node_modules missing in: " + nodeModulesDirPath);
 
-                    Console.WriteLine("Start npm install...");
-                    ProcessHelper.CmdExecute("npm install", tempPath);
-                }
-                else
+                Console.WriteLine("Start npm install...");
+                ProcessHelper.CmdExecute("npm install", tempPath);
+
+                Console.WriteLine("ElectronHostHook handling started...");
+
+                string electronhosthookDir = Path.Combine(Directory.GetCurrentDirectory(), "ElectronHostHook");
+
+                if (Directory.Exists(electronhosthookDir))
                 {
-                    Console.WriteLine("Skip npm install, because node_modules directory exists in: " + checkForNodeModulesDirPath);
+                    string hosthookDir = Path.Combine(tempPath, "ElectronHostHook");
+                    DirectoryCopy.Do(electronhosthookDir, hosthookDir, true, new List<string>() { "node_modules" });
+
+                    Console.WriteLine("Start npm install for hosthooks...");
+                    ProcessHelper.CmdExecute("npm install", hosthookDir);
+
+                    string tscPath = Path.Combine(tempPath, "node_modules", ".bin");
+                    // ToDo: Not sure if this runs under linux/macos
+                    ProcessHelper.CmdExecute(@"tsc -p ../../ElectronHostHook", tscPath);
                 }
 
                 string path = Path.Combine(tempPath, "node_modules", ".bin");
+
 
                 bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
                 if (isWindows)
@@ -92,5 +102,7 @@ namespace ElectronNET.CLI.Commands
                 return true;
             });
         }
+
+
     }
 }
